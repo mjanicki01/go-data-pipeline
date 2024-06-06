@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/csv"
 	"fmt"
 	"log"
@@ -10,6 +11,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/jackc/pgx/v4"
 	"github.com/joho/godotenv"
 )
 
@@ -19,6 +21,7 @@ type S3Config struct {
 	Key    string
 }
 
+// Connect to S3 and get records from CSV file
 func ReadCSVFromS3(config S3Config) ([][]string, error) {
 	sess, err := session.NewSession(&aws.Config{
 		Region: aws.String(config.Region)},
@@ -74,11 +77,39 @@ func ProcessData(records [][]string) (map[string]float64, map[string]float64) {
 	return productSales, countrySales
 }
 
+// Print processed data into console (use for testing)
+func PrintProcessedData(data map[string]float64, dataType string) {
+	fmt.Printf("%s:\n", dataType)
+	for key, value := range data {
+		fmt.Printf("%s: %.2f\n", key, value)
+	}
+}
+
+// Insert data into Redshift
+func InsertDataToRedshift(conn *pgx.Conn, tableName string, data map[string]float64) error {
+	for key, value := range data {
+		_, err := conn.Exec(context.Background(), fmt.Sprintf("INSERT INTO %s (id, total_sales) VALUES ($1, $2)", tableName), key, value)
+		if err != nil {
+			return fmt.Errorf("failed to insert data %v into %s: %v", key, tableName, err)
+		}
+		// log.Printf("Successfully inserted %v into %s", key, tableName)
+	}
+	return nil
+}
+
 func main() {
 	err := godotenv.Load()
 	if err != nil {
 		log.Fatalf("Error loading .env file")
 	}
+
+	connStr := os.Getenv("REDSHIFT_CONN_STRING")
+	conn, err := pgx.Connect(context.Background(), connStr)
+	if err != nil {
+		log.Fatalf("Unable to connect to database: %v\n", err)
+	}
+	defer conn.Close(context.Background())
+	log.Println("Successfully connected to the database")
 
 	config := S3Config{
 		Region: os.Getenv("REGION"),
@@ -94,13 +125,10 @@ func main() {
 
 	productSales, countrySales := ProcessData(records)
 
-	fmt.Println("Product Sales:")
-	for product, sales := range productSales {
-		fmt.Printf("%s: %.2f\n", product, sales)
-	}
+	// PrintProcessedData(productSales, "Product Sales")
+	// PrintProcessedData(countrySales, "Country Sales")
 
-	fmt.Println("Country Sales:")
-	for country, sales := range countrySales {
-		fmt.Printf("%s: %.2f\n", country, sales)
-	}
+	InsertDataToRedshift(conn, "product_sales", productSales)
+	InsertDataToRedshift(conn, "country_sales", countrySales)
+
 }

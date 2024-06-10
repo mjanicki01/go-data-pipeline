@@ -20,6 +20,24 @@ Ensure you have the following installed on your local machine:
 - [Docker Compose](https://docs.docker.com/compose/)
 - [Go](https://golang.org/dl/)
 
+## AWS Setup
+
+1. **Download Dataset**
+   - Download the Online Retail dataset from [UCI Machine Learning Repository](https://archive.ics.uci.edu/dataset/352/online+retail).
+
+2. **Create an S3 Bucket**
+   - Follow the instructions to [create an S3 bucket](https://docs.aws.amazon.com/AmazonS3/latest/user-guide/create-bucket.html).
+
+3. **Upload the Dataset to S3**
+   - Upload the `Online Retail` CSV file to the S3 bucket you created. Instructions can be found [here](https://docs.aws.amazon.com/AmazonS3/latest/user-guide/upload-objects.html).
+
+4. **Create a Redshift Cluster**
+   - Follow the steps to [create a Redshift cluster](https://docs.aws.amazon.com/redshift/latest/gsg/getting-started.html).
+
+5. **Create a New Database within the Redshift Cluster**
+   - Once your Redshift cluster is created, use the [AWS Management Console](https://docs.aws.amazon.com/redshift/latest/mgmt/working-with-snapshots-console.html) or [AWS CLI](https://docs.aws.amazon.com/redshift/latest/mgmt/managing-clusters-cli.html) to create a new database within the cluster.
+
+
 ## .env Variables
 
 ```dosini

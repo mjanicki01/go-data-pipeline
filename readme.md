@@ -20,12 +20,42 @@ Ensure you have the following installed on your local machine:
 - [Docker Compose](https://docs.docker.com/compose/)
 - [Go](https://golang.org/dl/)
 
-## Run with Docker
+## .env Variables
 
-1. `docker-compose build`
-2. `docker-compose up`
+```dosini
+# To read from S3:
+REGION=
+BUCKET=
+KEY=     #name of the .csv file in S3
+
+# To push data to Redshift:
+AWS_ACCESS_KEY_ID=
+AWS_SECRET_ACCESS_KEY=
+REDSHIFT_CONN_STRING=
+```
+
+## Run with Docker
+```dosini
+docker-compose build
+docker-compose up
+
+# To print the processed data:
+curl "http://localhost:8080?action=print"
+(note: the data is printed in the Docker container's console, not where curl is called)
+
+# To insert processed data into Redshift:
+curl "http://localhost:8080?action=insert"
+```
 
 ## Run without Docker
+```dosini
+go mod tidy
 
-1. `go mod tidy`
-2. `go run main.go`
+# To print the processed data:
+go run main.go -action=print
+
+# To insert processed data into Redshift:
+go run main.go -action=insert
+```
+
+

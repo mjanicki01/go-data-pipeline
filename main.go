@@ -3,8 +3,10 @@ package main
 import (
 	"context"
 	"encoding/csv"
+	"flag"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"strconv"
 
@@ -92,9 +94,49 @@ func InsertDataToRedshift(conn *pgx.Conn, tableName string, data map[string]floa
 		if err != nil {
 			return fmt.Errorf("failed to insert data %v into %s: %v", key, tableName, err)
 		}
-		// log.Printf("Successfully inserted %v into %s", key, tableName)
+		log.Printf("Successfully inserted %v into %s", key, tableName)
 	}
 	return nil
+}
+
+// handleAction performs the specified action (print or insert)
+func handleAction(conn *pgx.Conn, config S3Config, action string) error {
+	records, err := ReadCSVFromS3(config)
+	if err != nil {
+		return fmt.Errorf("Error reading CSV from S3: %v", err)
+	}
+
+	productSales, countrySales := ProcessData(records)
+
+	switch action {
+	case "print":
+		PrintProcessedData(productSales, "Product Sales")
+		PrintProcessedData(countrySales, "Country Sales")
+	case "insert":
+		err = InsertDataToRedshift(conn, "product_sales", productSales)
+		if err != nil {
+			return fmt.Errorf("Error inserting product sales data: %v", err)
+		}
+		err = InsertDataToRedshift(conn, "country_sales", countrySales)
+		if err != nil {
+			return fmt.Errorf("Error inserting country sales data: %v", err)
+		}
+	default:
+		return fmt.Errorf("Invalid action specified. Please use -action=print or -action=insert")
+	}
+	return nil
+}
+
+func handleRequest(conn *pgx.Conn, config S3Config) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		action := r.URL.Query().Get("action")
+		err := handleAction(conn, config, action)
+		if err != nil {
+			fmt.Fprintf(w, "%v", err)
+			return
+		}
+		fmt.Fprintf(w, "Action %s executed successfully", action)
+	}
 }
 
 func main() {
@@ -117,18 +159,16 @@ func main() {
 		Key:    os.Getenv("KEY"),
 	}
 
-	records, err := ReadCSVFromS3(config)
-	if err != nil {
-		fmt.Println("Error reading CSV from S3:", err)
-		return
+	action := flag.String("action", "", "Specify the action to perform: print or insert")
+	flag.Parse()
+
+	if *action == "" {
+		http.HandleFunc("/", handleRequest(conn, config))
+		log.Fatal(http.ListenAndServe(":8080", nil))
+	} else {
+		err := handleAction(conn, config, *action)
+		if err != nil {
+			log.Fatalf("%v", err)
+		}
 	}
-
-	productSales, countrySales := ProcessData(records)
-
-	// PrintProcessedData(productSales, "Product Sales")
-	// PrintProcessedData(countrySales, "Country Sales")
-
-	InsertDataToRedshift(conn, "product_sales", productSales)
-	InsertDataToRedshift(conn, "country_sales", countrySales)
-
 }
